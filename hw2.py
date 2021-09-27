@@ -1,3 +1,5 @@
+import numpy as np
+
 def display_image(image):
     """
     Displays an image from the mnist dataset
@@ -32,3 +34,5 @@ def get_mnist_threes_nines():
     y_train = (y_train == Y1).astype('int')
     y_test = (y_test == Y1).astype('int')
     return (X_train, y_train), (X_test, y_test)
+
+train,test = get_mnist_threes_nines()
