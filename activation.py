@@ -40,3 +40,7 @@ def relu(x):
     grad[posidx] = 1.0
 
     return result,grad
+
+x = np.asarray([[-1,2,3],
+                [0,-1,-2],
+                [1,2,3]])
