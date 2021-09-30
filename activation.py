@@ -10,13 +10,6 @@ def negative_sigmoid(x):
     return exp / (1 + exp)
 
 
-def clip_epsilon(x, epsilon):
-    lessidx = x < epsilon
-    greatidx = x > 1 - epsilon
-    x[lessidx] = epsilon
-    x[greatidx] = 1 - epsilon
-
-
 def sigmoid_activation(x, epsilon=1e-15):
     posidx = x > 0
     negidx = ~posidx
@@ -24,7 +17,8 @@ def sigmoid_activation(x, epsilon=1e-15):
     result = np.empty_like(x)
     result[posidx] = positive_sigmoid(x[posidx])
     result[negidx] = negative_sigmoid(x[negidx])
-    clip_epsilon(result, epsilon)
+
+    np.clip(result, epsilon, 1 - epsilon)
 
     grad = result * (1 - result)
 
@@ -39,8 +33,6 @@ def relu(x):
     grad = np.zeros_like(x)
     grad[posidx] = 1.0
 
-    return result,grad
+    return result, grad
 
-x = np.asarray([[-1,2,3],
-                [0,-1,-2],
-                [1,2,3]])
+
