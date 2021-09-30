@@ -1,9 +1,7 @@
-import numpy as np
-
-
 def layer_forward(X, W, b, activation_fn):
     S = X @ W + b
     out, cache = activation_fn(S)
+    return out, cache
 
 
 def forward_pass(X_batch, weight_matrices, biases, activations):

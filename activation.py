@@ -34,5 +34,3 @@ def relu(x):
     grad[posidx] = 1.0
 
     return result, grad
-
-

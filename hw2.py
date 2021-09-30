@@ -1,4 +1,6 @@
 import numpy as np
+import forward_pass
+
 
 def display_image(image):
     """
@@ -23,8 +25,8 @@ def get_mnist_threes_nines():
 
     y_train = mnist.train_labels()
     y_test = mnist.test_labels()
-    X_train = (mnist.train_images()/255.0)
-    X_test = (mnist.test_images()/255.0)
+    X_train = (mnist.train_images() / 255.0)
+    X_test = (mnist.test_images() / 255.0)
     train_idxs = np.logical_or(y_train == Y0, y_train == Y1)
     test_idxs = np.logical_or(y_test == Y0, y_test == Y1)
     y_train = y_train[train_idxs].astype('int')
@@ -35,4 +37,134 @@ def get_mnist_threes_nines():
     y_test = (y_test == Y1).astype('int')
     return (X_train, y_train), (X_test, y_test)
 
-train,test = get_mnist_threes_nines()
+
+def positive_sigmoid(x):
+    return 1.0 / (1.0 + np.exp(-x))
+
+
+def negative_sigmoid(x):
+    exp = np.exp(x)
+    return exp / (1 + exp)
+
+
+def sigmoid_activation(x, epsilon=1e-15):
+    posidx = x > 0
+    negidx = ~posidx
+
+    result = np.empty_like(x)
+    result[posidx] = positive_sigmoid(x[posidx])
+    result[negidx] = negative_sigmoid(x[negidx])
+
+    np.clip(result, epsilon, 1 - epsilon)
+
+    grad = result * (1 - result)
+
+    return result, grad
+
+
+def relu(x):
+    result = np.zeros_like(x)
+    posidx = x > 0
+    result[posidx] = x[posidx]
+
+    grad = np.zeros_like(x)
+    grad[posidx] = 1.0
+
+    return result, grad
+
+
+def logistic_loss(g, y):
+    assert g.shape == y.shape
+    loss = -(y * np.log(g) + (1 - y) * np.log(1 - g))
+    grad = (g - y) / (g * (1 - g))
+    return loss, grad
+
+
+def make_weight_matrix(rows, cols, loc=0.0, scale=0.01):
+    return np.random.normal(loc, scale, (rows, cols))
+
+
+def create_weight_matrices(layer_dims, seed=False):
+    if seed:
+        np.random.seed(42)
+
+    numlayers = len(layer_dims)
+    weights = [make_weight_matrix(layer_dims[i], layer_dims[i + 1]) for i in range(numlayers - 1)]
+
+    return weights
+
+
+def make_bias_vector(cols, loc=0.0, scale=0.01):
+    return np.random.normal(loc, scale, (1, cols))
+
+
+def create_bias_vectors(layer_dims, seed=False):
+    if seed:
+        np.random.seed(42)
+
+    numlayers = len(layer_dims)
+    biases = [make_bias_vector(layer_dims[i + 1]) for i in range(numlayers - 1)]
+
+    return biases
+
+
+def layer_forward(X, W, b, activation_fn):
+    S = X @ W + b
+    out, cache = activation_fn(S)
+    return out, cache
+
+
+def forward_pass(X_batch, weight_matrices, biases, activations):
+    layer_vals = [X_batch]
+    layer_grads = []
+
+    for idx, func in enumerate(activations):
+        out, cache = layer_forward(layer_vals[-1], weight_matrices[idx], biases[idx], func)
+        layer_vals.append(out)
+        layer_grads.append(cache)
+
+    return layer_vals, layer_grads
+
+
+# train, test = get_mnist_threes_nines()
+# Xtrain, Ytrain = train
+# Xtest, Ytest = test
+
+Xtrain = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+Ytrain = np.array([0, 1])
+
+num_train_samples, numpixels, _ = Xtrain.shape
+input_layer_dim = numpixels * numpixels
+
+# flatten the input data into a matrix
+Xtrain = Xtrain.reshape(-1, input_layer_dim)
+
+layer_dims = [input_layer_dim, 2, 1]
+activations = [relu, sigmoid_activation]
+
+weight_matrices = create_weight_matrices(layer_dims)
+biases = create_bias_vectors(layer_dims)
+
+nn_vals, nn_grads = forward_pass(Xtrain, weight_matrices, biases, activations)
+output = np.ravel(nn_vals[-1])
+
+loss, dL_dg = logistic_loss(output, Ytrain)
+
+gp2 = nn_grads[-1]
+x1 = nn_vals[-2]
+G2 = np.einsum('nj,ni->nij', gp2, x1)
+
+b1 = biases[1]
+w1 = weight_matrices[1]
+
+import finite_difference as fd
+
+der0 = fd.finite_difference(lambda w: sigmoid_activation(x1 @ w + b1)[0], w1, (0, 0))
+der1 = fd.finite_difference(lambda w: sigmoid_activation(x1 @ w + b1)[0], w1, (1, 0))
+
+gp1 = nn_grads[-2]
+x0 = nn_vals[-3]
+G1 = np.einsum('nj,ni->nij', gp1, x0)
+w0 = weight_matrices[0]
+
+der0 = fd.finite_difference(lambda w: forward_pass(Xtrain, [w, w1], biases, activations)[0][-1], w0, (0, 1))
