@@ -173,78 +173,41 @@ def compute_loss_derivative_wrt_parameters(dLdg, deltas, nn_vals):
     return dLdw, dLdb
 
 
-def average_loss_derivative(dL_dw):
-    mean_dL_dw = [np.mean(dL, axis=0) for dL in dL_dw]
-    return mean_dL_dw
 
 
-def update_model_parameters(parameters, derivatives, lr):
-    assert len(parameters) == len(derivatives)
 
-    for (idx, w) in enumerate(parameters):
-        w -= lr * derivatives[idx]
-
-
-def train_batch(Xbatch, Ybatch, weight_matrices, biases, activations, lr):
-    nn_vals, nn_grads = forward_pass(Xbatch, weight_matrices, biases, activations)
+def loss_for_finite_difference(Xtrain, Ytrain, weight_matrices, biases, activations):
+    nn_vals, nn_grads = forward_pass(Xtrain, weight_matrices, biases, activations)
     output = np.ravel(nn_vals[-1])
-
-    loss, dLdg = logistic_loss(output, Ybatch)
-    deltas = compute_deltas(nn_grads, weight_matrices)
-
-    sample_dL_dw, sample_dL_db = compute_loss_derivative_wrt_parameters(dLdg, deltas, nn_vals)
-    dL_dw = average_loss_derivative(sample_dL_dw)
-    dL_db = average_loss_derivative(sample_dL_db)
-
-    update_model_parameters(weight_matrices, dL_dw, lr)
-    update_model_parameters(biases, dL_db, lr)
-
-    return np.mean(loss)
+    loss, dL_dg = logistic_loss(output, Ytrain)
+    return loss
 
 
-def train_epoch(Xtrain, Ytrain, weight_matrices, biases, activations, lr, batchsize):
-    num_train_samples, numpixels = Xtrain.shape
-    breakpoints = np.arange(0, num_train_samples, batchsize)
-    np.append(breakpoints, num_train_samples - 1)
-    batch_loss = np.zeros(len(breakpoints)-1)
+# train, test = get_mnist_threes_nines()
+# Xtrain, Ytrain = train
+# Xtest, Ytest = test
 
-    for idx in range(len(breakpoints) - 1):
-        start = breakpoints[idx]
-        stop = breakpoints[idx + 1]
+Xtrain = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+Ytrain = np.array([0, 1])
 
-        Xbatch = Xtrain[start:stop, :]
-        Ybatch = Ytrain[start:stop]
+num_train_samples, numpixels, _ = Xtrain.shape
+input_layer_dim = numpixels * numpixels
 
-        batch_loss[idx] = train_batch(Xbatch, Ybatch, weight_matrices, biases, activations, lr)
+# flatten the input data into a matrix
+Xtrain = Xtrain.reshape(-1, input_layer_dim)
 
-    return batch_loss
+layer_dims = [input_layer_dim, 2, 1]
+activations = [relu, sigmoid_activation]
+
+weight_matrices = create_weight_matrices(layer_dims)
+biases = create_bias_vectors(layer_dims)
+
+nn_vals, nn_grads = forward_pass(Xtrain, weight_matrices, biases, activations)
+output = np.ravel(nn_vals[-1])
+
+loss, dL_dg = logistic_loss(output, Ytrain)
+deltas = compute_deltas(nn_grads, weight_matrices)
+
+dL_dw, dL_db = compute_loss_derivative_wrt_parameters(dL_dg, deltas, nn_vals)
 
 
-def run_epochs(Xtrain, Ytrain, weight_matrices, biases, activations, lr, batchsize):
-    num_train_samples, numpixels = Xtrain.shape
-
-
-train, test = get_mnist_threes_nines()
-Xtrain, Ytrain = train
-Xtest, Ytest = test
-
-# num_train_samples, numpixels, _ = Xtrain.shape
-# input_layer_dim = numpixels * numpixels
-#
-# # flatten the input data into a matrix
-# Xtrain = Xtrain.reshape(-1, input_layer_dim)
-#
-# layer_dims = [input_layer_dim, 2, 1]
-# activations = [relu, sigmoid_activation]
-#
-# weight_matrices = create_weight_matrices(layer_dims)
-# biases = create_bias_vectors(layer_dims)
-#
-# w0 = np.copy(weight_matrices[0])
-#
-# rowidx = np.arange(num_train_samples)
-# np.random.shuffle(rowidx)
-# Xtrain = Xtrain[rowidx, :]
-# Ytrain = Ytrain[rowidx]
-#
-# batch_losses = train_epoch(Xtrain, Ytrain, weight_matrices, biases, activations, 0.1, 100)
