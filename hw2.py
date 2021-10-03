@@ -1,4 +1,6 @@
 import numpy as np
+
+import finite_difference
 import forward_pass
 
 
@@ -126,6 +128,76 @@ def forward_pass(X_batch, weight_matrices, biases, activations):
     return layer_vals, layer_grads
 
 
+def compute_layer_delta(layer_grad, weight_matrix, next_delta):
+    assert weight_matrix.shape[1] == next_delta.shape[1]
+    assert layer_grad.shape[0] == next_delta.shape[0]
+    assert layer_grad.shape[1] == weight_matrix.shape[0]
+
+    delta = layer_grad * np.einsum('jk,nk->nj', weight_matrix, next_delta)
+    return delta
+
+
+def compute_deltas(layer_gradients, weight_matrices):
+    assert len(layer_gradients) == len(weight_matrices)
+
+    dL = layer_gradients[-1]
+    deltas = [dL]
+
+    for idx in range(len(weight_matrices) - 1, 0, -1):
+        w = weight_matrices[idx]
+        lg = layer_gradients[idx - 1]
+        nd = deltas[0]
+
+        d = compute_layer_delta(lg, w, nd)
+        deltas.insert(0, d)
+
+    return deltas
+
+
+def compute_layer_loss_derivative_wrt_weights(dLdg, delta, nn_val):
+    assert len(dLdg) == delta.shape[0] == nn_val.shape[0]
+
+    return np.einsum('n,nj,ni->nij', dLdg, delta, nn_val)
+
+
+def compute_loss_derivative_wrt_weights(dLdg, deltas, nn_vals):
+    dLdw = []
+    assert len(deltas) == len(nn_vals) - 1
+
+    for (idx, d) in enumerate(deltas):
+        x = nn_vals[idx]
+        dLdw.append(compute_layer_loss_derivative_wrt_weights(dLdg, d, x))
+
+    return dLdw
+
+
+def compute_loss_derivative_wrt_parameters(dLdg, deltas, nn_vals):
+    dLdw = []
+    dLdb = []
+    assert len(deltas) == len(nn_vals) - 1
+
+    for (idx, d) in enumerate(deltas):
+        x = nn_vals[idx]
+
+        assert len(dLdg) == d.shape[0] == x.shape[0]
+
+        layer_dLdb = np.einsum('n,nj->nj', dLdg, d)
+        layer_dLdw = np.einsum('nj,ni->nij', layer_dLdb, x)
+
+        dLdb.append(layer_dLdb)
+        dLdw.append(layer_dLdw)
+
+    return dLdw, dLdb
+
+
+
+def loss_for_finite_difference(Xtrain, Ytrain, weight_matrices, biases, activations):
+    nn_vals, nn_grads = forward_pass(Xtrain, weight_matrices, biases, activations)
+    output = np.ravel(nn_vals[-1])
+    loss, dL_dg = logistic_loss(output, Ytrain)
+    return loss
+
+
 # train, test = get_mnist_threes_nines()
 # Xtrain, Ytrain = train
 # Xtest, Ytest = test
@@ -149,22 +221,8 @@ nn_vals, nn_grads = forward_pass(Xtrain, weight_matrices, biases, activations)
 output = np.ravel(nn_vals[-1])
 
 loss, dL_dg = logistic_loss(output, Ytrain)
+deltas = compute_deltas(nn_grads, weight_matrices)
 
-gp2 = nn_grads[-1]
-x1 = nn_vals[-2]
-G2 = np.einsum('nj,ni->nij', gp2, x1)
+dL_dw, dL_db = compute_loss_derivative_wrt_parameters(dL_dg, deltas, nn_vals)
 
-b1 = biases[1]
-w1 = weight_matrices[1]
 
-import finite_difference as fd
-
-der0 = fd.finite_difference(lambda w: sigmoid_activation(x1 @ w + b1)[0], w1, (0, 0))
-der1 = fd.finite_difference(lambda w: sigmoid_activation(x1 @ w + b1)[0], w1, (1, 0))
-
-gp1 = nn_grads[-2]
-x0 = nn_vals[-3]
-G1 = np.einsum('nj,ni->nij', gp1, x0)
-w0 = weight_matrices[0]
-
-der0 = fd.finite_difference(lambda w: forward_pass(Xtrain, [w, w1], biases, activations)[0][-1], w0, (0, 1))
