@@ -5,9 +5,9 @@ import pickle
 
 
 def loss_for_finite_difference(Xtrain, Ytrain, weight_matrices, biases, activations):
-    nn_vals, nn_grads = forward_pass(Xtrain, weight_matrices, biases, activations)
+    nn_vals, nn_grads = nn.forward_pass(Xtrain, weight_matrices, biases, activations)
     output = np.ravel(nn_vals[-1])
-    loss, dL_dg = logistic_loss(output, Ytrain)
+    loss, dL_dg = nn.logistic_loss(output, Ytrain)
     return loss
 
 

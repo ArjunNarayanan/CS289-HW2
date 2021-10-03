@@ -1,0 +1,4 @@
+loss, dLdg = nn.logistic_loss(op, Ybatch)
+
+print(loss.mean())
+0.6985168038536878

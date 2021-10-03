@@ -1,0 +1,12 @@
+s = np.asarray([1., 0., -1.])
+result, grad = nn.sigmoid_activation(s)
+
+result
+Out[82]: array([0.73105858, 0.5       , 0.26894142])
+
+
+s = np.asarray([-1000, 1000])
+result, grad = nn.sigmoid_activation(s)
+
+result
+Out[85]: array([0, 1])
