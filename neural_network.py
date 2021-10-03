@@ -206,7 +206,7 @@ def train_epoch(Xtrain, Ytrain, weight_matrices, biases, activations, lr, batchs
     num_train_samples, numpixels = Xtrain.shape
     breakpoints = np.arange(0, num_train_samples, batchsize)
     np.append(breakpoints, num_train_samples - 1)
-    batch_loss = np.zeros(len(breakpoints)-1)
+    batch_loss = np.zeros(len(breakpoints) - 1)
 
     for idx in range(len(breakpoints) - 1):
         start = breakpoints[idx]
@@ -220,21 +220,46 @@ def train_epoch(Xtrain, Ytrain, weight_matrices, biases, activations, lr, batchs
     return batch_loss
 
 
-def run_epochs(Xtrain, Ytrain, weight_matrices, biases, activations, lr, batchsize):
+def run_epochs(Xtrain, Ytrain, weight_matrices, biases, activations, lr, batchsize, numepochs):
     num_train_samples, numpixels = Xtrain.shape
+    rowidx = np.arange(num_train_samples)
+
+    batch_losses = []
+    for epoch in range(numepochs):
+        np.random.shuffle(rowidx)
+        Xtrain = Xtrain[rowidx, :]
+        Ytrain = Ytrain[rowidx]
+
+        bl = train_epoch(Xtrain, Ytrain, weight_matrices, biases, activations, lr, batchsize)
+        batch_losses.append(bl)
+
+    return batch_losses
 
 
-train, test = get_mnist_threes_nines()
-Xtrain, Ytrain = train
-Xtest, Ytest = test
+def predict(X, weight_matrices, biases, activations):
+    nn_vals, nn_grads = forward_pass(X, weight_matrices, biases, activations)
+    output = np.ravel(nn_vals[-1])
+    return output
 
+
+
+
+
+# learning_rate = 0.1
+# batchsize = 100
+# numepochs = 5
+# train, test = get_mnist_threes_nines()
+# Xtrain, Ytrain = train
+# Xtest, Ytest = test
+#
 # num_train_samples, numpixels, _ = Xtrain.shape
 # input_layer_dim = numpixels * numpixels
 #
 # # flatten the input data into a matrix
 # Xtrain = Xtrain.reshape(-1, input_layer_dim)
+# Xtest = Xtest.reshape(-1, input_layer_dim)
 #
-# layer_dims = [input_layer_dim, 2, 1]
+# layer_dims = [input_layer_dim, 200, 1]
 # activations = [relu, sigmoid_activation]
 #
 # weight_matrices = create_weight_matrices(layer_dims)
@@ -247,4 +272,12 @@ Xtest, Ytest = test
 # Xtrain = Xtrain[rowidx, :]
 # Ytrain = Ytrain[rowidx]
 #
-# batch_losses = train_epoch(Xtrain, Ytrain, weight_matrices, biases, activations, 0.1, 100)
+# batch_losses = run_epochs(Xtrain, Ytrain, weight_matrices, biases, activations, learning_rate, batchsize, numepochs)
+#
+# output = predict(Xtest, weight_matrices, biases, activations)
+# test_loss, _ = logistic_loss(output, Ytest)
+#
+# predictions = np.rint(output)
+# predictions_vs_test = predictions == Ytest
+# num_correct = np.count_nonzero(predictions_vs_test)
+# accuracy = (num_correct/len(Ytest))*100
