@@ -185,13 +185,28 @@ def update_model_parameters(parameters, derivatives, lr):
         w -= lr * derivatives[idx]
 
 
-def train_batch(Xbatch, Ybatch, weight_matrices, biases, activations, lr):
+def measure_accuracy(nn_output, Y):
+    predictions = np.rint(nn_output)
+    matches = predictions == Y
+    num_matches = np.count_nonzero(matches)
+    accuracy = (num_matches / len(Y)) * 100
+    return accuracy
+
+
+def train_batch(Xbatch, Ybatch, Xtest, Ytest, weight_matrices, biases, activations, lr):
     nn_vals, nn_grads = forward_pass(Xbatch, weight_matrices, biases, activations)
     output = np.ravel(nn_vals[-1])
 
     loss, dLdg = logistic_loss(output, Ybatch)
-    deltas = compute_deltas(nn_grads, weight_matrices)
+    trainaccuracy = measure_accuracy(output, Ybatch)
 
+    testvals, _ = forward_pass(Xtest, weight_matrices, biases, activations)
+    testop = np.ravel(testvals[-1])
+    testaccuracy = measure_accuracy(testop, Ytest)
+
+    testloss, _ = logistic_loss(testop, Ytest)
+
+    deltas = compute_deltas(nn_grads, weight_matrices)
     sample_dL_dw, sample_dL_db = compute_loss_derivative_wrt_parameters(dLdg, deltas, nn_vals)
     dL_dw = average_loss_derivative(sample_dL_dw)
     dL_db = average_loss_derivative(sample_dL_db)
@@ -199,14 +214,19 @@ def train_batch(Xbatch, Ybatch, weight_matrices, biases, activations, lr):
     update_model_parameters(weight_matrices, dL_dw, lr)
     update_model_parameters(biases, dL_db, lr)
 
-    return np.mean(loss)
+    return np.mean(loss), np.mean(testloss), trainaccuracy, testaccuracy
 
 
-def train_epoch(Xtrain, Ytrain, weight_matrices, biases, activations, lr, batchsize):
+def train_epoch(Xtrain, Ytrain, Xtest, Ytest, weight_matrices, biases, activations, lr, batchsize):
     num_train_samples, numpixels = Xtrain.shape
     breakpoints = np.arange(0, num_train_samples, batchsize)
     np.append(breakpoints, num_train_samples - 1)
-    batch_loss = np.zeros(len(breakpoints) - 1)
+
+    batch_train_loss = np.zeros(len(breakpoints) - 1)
+    batch_train_accuracy = np.zeros(len(breakpoints) - 1)
+
+    batch_test_loss = np.zeros(len(breakpoints) - 1)
+    batch_test_accuracy = np.zeros(len(breakpoints) - 1)
 
     for idx in range(len(breakpoints) - 1):
         start = breakpoints[idx]
@@ -215,69 +235,47 @@ def train_epoch(Xtrain, Ytrain, weight_matrices, biases, activations, lr, batchs
         Xbatch = Xtrain[start:stop, :]
         Ybatch = Ytrain[start:stop]
 
-        batch_loss[idx] = train_batch(Xbatch, Ybatch, weight_matrices, biases, activations, lr)
+        trainloss, testloss, trainaccuracy, testaccuracy = train_batch(Xbatch, Ybatch, Xtest, Ytest, weight_matrices,
+                                                                       biases, activations, lr)
 
-    return batch_loss
+        batch_train_loss[idx] = trainloss
+        batch_test_loss[idx] = testloss
+
+        batch_train_accuracy[idx] = trainaccuracy
+        batch_test_accuracy[idx] = testaccuracy
+
+    return batch_train_loss, batch_test_loss, batch_train_accuracy, batch_test_accuracy
 
 
-def run_epochs(Xtrain, Ytrain, weight_matrices, biases, activations, lr, batchsize, numepochs):
+def run_epochs(Xtrain, Ytrain, Xtest, Ytest, weight_matrices, biases, activations, lr, batchsize, numepochs):
     num_train_samples, numpixels = Xtrain.shape
     rowidx = np.arange(num_train_samples)
 
-    batch_losses = []
+    batch_train_losses = []
+    batch_test_losses = []
+
+    batch_train_accuracies = []
+    batch_test_accuracies = []
+
     for epoch in range(numepochs):
         np.random.shuffle(rowidx)
         Xtrain = Xtrain[rowidx, :]
         Ytrain = Ytrain[rowidx]
 
-        bl = train_epoch(Xtrain, Ytrain, weight_matrices, biases, activations, lr, batchsize)
-        batch_losses.append(bl)
+        trainloss, testloss, trainaccuracy, testaccuracy = train_epoch(Xtrain, Ytrain, Xtest, Ytest, weight_matrices,
+                                                                       biases, activations, lr,
+                                                                       batchsize)
 
-    return batch_losses
+        batch_train_losses.append(trainloss)
+        batch_test_losses.append(testloss)
+
+        batch_train_accuracies.append(trainaccuracy)
+        batch_test_accuracies.append(testaccuracy)
+
+    return batch_train_losses, batch_test_losses, batch_train_accuracies, batch_test_accuracies
 
 
 def predict(X, weight_matrices, biases, activations):
     nn_vals, nn_grads = forward_pass(X, weight_matrices, biases, activations)
     output = np.ravel(nn_vals[-1])
     return output
-
-
-
-
-
-# learning_rate = 0.1
-# batchsize = 100
-# numepochs = 5
-# train, test = get_mnist_threes_nines()
-# Xtrain, Ytrain = train
-# Xtest, Ytest = test
-#
-# num_train_samples, numpixels, _ = Xtrain.shape
-# input_layer_dim = numpixels * numpixels
-#
-# # flatten the input data into a matrix
-# Xtrain = Xtrain.reshape(-1, input_layer_dim)
-# Xtest = Xtest.reshape(-1, input_layer_dim)
-#
-# layer_dims = [input_layer_dim, 200, 1]
-# activations = [relu, sigmoid_activation]
-#
-# weight_matrices = create_weight_matrices(layer_dims)
-# biases = create_bias_vectors(layer_dims)
-#
-# w0 = np.copy(weight_matrices[0])
-#
-# rowidx = np.arange(num_train_samples)
-# np.random.shuffle(rowidx)
-# Xtrain = Xtrain[rowidx, :]
-# Ytrain = Ytrain[rowidx]
-#
-# batch_losses = run_epochs(Xtrain, Ytrain, weight_matrices, biases, activations, learning_rate, batchsize, numepochs)
-#
-# output = predict(Xtest, weight_matrices, biases, activations)
-# test_loss, _ = logistic_loss(output, Ytest)
-#
-# predictions = np.rint(output)
-# predictions_vs_test = predictions == Ytest
-# num_correct = np.count_nonzero(predictions_vs_test)
-# accuracy = (num_correct/len(Ytest))*100
